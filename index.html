@@ -6,7 +6,7 @@
 <title>우리 할 일</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fffcee;--card:rgba(255,255,255,.72);--tx:#3f3a35;--sub:#9a97a6;--line:rgba(200,170,60,.16);--pri:#7c5cd6;--priBg:#e8e0fa;--priTx:#5b3fb3;--soft:rgba(255,225,110,.12);--red:#e0616b;--sh:0 6px 18px rgba(220,190,80,.16);
+:root{--bg:#fffcee;--card:rgba(255,255,255,.72);--tx:#3f3a35;--sub:#7d7a8a;--line:rgba(200,170,60,.16);--pri:#7c5cd6;--priBg:#e8e0fa;--priTx:#5b3fb3;--soft:rgba(255,225,110,.12);--red:#e0616b;--sh:0 6px 18px rgba(220,190,80,.16);
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#26221b;--card:#302b22;--tx:#f3ebdb;--sub:#b3a994;--line:#443d2f;--soft:#4a3f2a;--priBg:#5a4034;--priTx:#ffe3d3;--red:#ff8f8f;--sh:none;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#26221b;--card:#302b22;--tx:#f3ebdb;--sub:#b3a994;--line:#443d2f;--soft:#4a3f2a;--priBg:#5a4034;--priTx:#ffe3d3;--red:#ff8f8f;--sh:none;color-scheme:dark}
@@ -24,7 +24,7 @@ button,input,select{font:inherit;color:var(--tx)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:12px}
 .pbtn{background:var(--c,#ffe0e8);color:#4a4550;border-radius:24px;padding:18px 8px 14px;text-align:center;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis}
 .pbtn span{display:flex;width:46px;height:46px;margin:0 auto 8px;border-radius:50%;background:rgba(255,255,255,.7);align-items:center;justify-content:center;font-size:23px}
-.pbtn small{display:block;color:#8a8594;font-weight:400;font-size:12px;margin-top:2px}
+.pbtn small{display:block;color:#6f6a78;font-weight:400;font-size:12px;margin-top:2px}
 .todo{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
 .item:last-child>.todo:last-child{border-bottom:0}
 .todo input{width:20px;height:20px;accent-color:var(--pri);flex:none}
@@ -98,6 +98,9 @@ nav{background:rgba(255,255,255,.8);backdrop-filter:blur(8px);-webkit-backdrop-f
 .todo.ov{background:var(--soft);outline:2px dashed var(--pri);border-radius:12px}
 .dz{border:2px dashed var(--line);border-radius:14px;text-align:center;padding:12px;color:var(--sub);font-size:14px;margin-bottom:10px}
 .dz.ov{border-color:var(--pri);background:var(--soft);color:var(--pri)}
+.lo{text-align:right;margin:-8px 0 2px}
+.lo button{background:none;border:0;color:var(--sub);font-size:13px;cursor:pointer;padding:2px 0;white-space:nowrap}
+.sm.plus{font-size:18px;line-height:1.2;padding:2px 11px}
 </style>
 </head>
 <body>
@@ -147,11 +150,9 @@ function cb(t){
   if(t.who==="각자")return `<span class="cb2">${EACH.map(n=>`<label><input type="checkbox" style="--ck:${CK[n]}" data-act="tog2" data-id="${t.id}" data-who="${n}" ${t.dn&&t.dn[n]?"checked":""}><small>${n}</small></label>`).join("")}</span>`;
   return `<input type="checkbox" style="--ck:${ck(t)}" data-act="tog" data-id="${t.id}" ${t.done?"checked":""}>`;
 }
-function locOpts(t,sel){
-  const ex=t.id?dT(t.id):[];
-  let h=projects.filter(p=>!p.parent).map(p=>`<option value="P|${p.id}" ${sel==="P|"+p.id?"selected":""}>${esc((p.emoji||"")+" "+p.name)} · 최상위</option>`).join("");
-  const L=todos.filter(x=>!ex.includes(x.id)).map(x=>[tPath(x)+" › "+x.title,x.id]).sort((a,b)=>a[0].localeCompare(b[0]));
-  return h+L.map(([p,id])=>`<option value="T|${id}" ${sel==="T|"+id?"selected":""}>${esc(p)}</option>`).join("");
+function locOpts(t){
+  const cur=rootP(t.projectId);
+  return projects.filter(p=>!p.parent).map(p=>`<option value="${p.id}" ${p.id===cur?"selected":""}>${esc((p.emoji||"")+" "+p.name)}</option>`).join("");
 }
 /* flat row (임박/내가/달력) */
 function flat(t){
@@ -164,8 +165,8 @@ function node(t){
   const kids=todos.filter(x=>x.parent===t.id).sort(byKey),op=open.has(t.id)||editMode;
   const sub=[label(t),kids.length?`하위 ${kids.filter(x=>x.done).length}/${kids.length}`:""].filter(Boolean).join(" · ");
   return `<div class="item"><div class="todo ${t.done?"done":""}" data-row="${t.id}">${editMode?`<span class="hd" data-drag="${t.id}">⠿</span>`:cb(t)}
-  <div class="tt" data-act="exp" data-id="${t.id}">${esc(t.title)}${sub?`<small>${sub}</small>`:""}${t.memo?`<small class="memo">📝 ${esc(t.memo)}</small>`:""}</div><span class="w" style="background:${WC[t.who]||"#eee"}">${esc(t.who||"")}</span><button class="sm" data-act="edit" data-id="${t.id}">⋯</button><span class="chev ${op?"o":""}" data-act="exp" data-id="${t.id}">›</span></div>`+
-  (op?`<div class="kids">${kids.map(node).join("")}${editMode?"":`<button class="add" data-act="addTodo" data-id="${t.id}">+ 하위 항목</button>`}</div>`:"")+`</div>`;
+  <div class="tt" data-act="exp" data-id="${t.id}">${esc(t.title)}${sub?`<small>${sub}</small>`:""}${t.memo?`<small class="memo">📝 ${esc(t.memo)}</small>`:""}</div><span class="w" style="background:${WC[t.who]||"#eee"}">${esc(t.who||"")}</span>${editMode?"":`<button class="sm plus" data-act="addTodo" data-id="${t.id}">+</button>`}<button class="sm" data-act="edit" data-id="${t.id}">⋯</button>${kids.length?`<span class="chev ${op?"o":""}" data-act="exp" data-id="${t.id}">›</span>`:""}</div>`+
+  (op&&kids.length?`<div class="kids">${kids.map(node).join("")}</div>`:"")+`</div>`;
 }
 const delBtn=id=>`<button class="sm ${armed===id?"arm":""}" data-act="delProj" data-id="${id}">${armed===id?"정말 삭제?":"삭제"}</button>`;
 
@@ -223,7 +224,7 @@ function render(){if(drag)return;theme();
   $("#nav").innerHTML=[["list","📝","투두리스트"],["mine","✅","내가 할 일"],["cal","📅","달력"]].map(([k,i,n])=>`<button class="${tab===k?"on":""}" data-act="tab" data-id="${k}"><b>${i}</b>${n}</button>`).join("");
   let body=!ready?`<div class="msg">불러오는 중…</div>`:tab==="list"?vList():tab==="mine"?vMine():vCal();
   if(db===false)body=`<div class="msg">저장소에 연결할 수 없어요.<br>claude.ai에 로그인 후 다시 열어주세요.</div>`;
-  $("#app").innerHTML=`<header><h1>🏡 우리 할 일</h1><div class="who3">${["우정","길성","함께"].map(n=>`<button class="${n===me?"on":""}" data-act="setme" data-id="${n}">${n}</button>`).join("")}</div></header>`+body+(tab==="list"&&!proj&&ready?`<div style="text-align:center;margin-top:28px"><button class="sm" data-act="logout">로그아웃 (${esc(user.email)})</button></div>`:"");
+  $("#app").innerHTML=`<div class="lo"><button data-act="logout">로그아웃</button></div><header><h1>🏡 우리 할 일</h1><div class="who3">${["우정","길성","함께"].map(n=>`<button class="${n===me?"on":""}" data-act="setme" data-id="${n}">${n}</button>`).join("")}</div></header>`+body;
 }
 /* modal */
 function openModal(html,onSave,onDel){
@@ -251,14 +252,14 @@ function todoModal(pid,t,parent){
   <input type="date" id="dd" value="${t.due||"2026-11-01"}" style="margin-top:8px">
   <div class="sh2" id="mw" style="margin-top:8px"><select id="my">${yo.map(y=>`<option value="${y}" ${y===my?"selected":""}>${y}년</option>`).join("")}</select><select id="mo">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===mm?"selected":""}>${i+1}월 중</option>`).join("")}</select></div>
   <label>메모</label><textarea id="memo" rows="3" placeholder="방법, 장소, 시간 등을 적어두세요">${esc(t.memo||"")}</textarea>
-  <label>위치 (다른 할 일 아래로 옮기기)</label><select id="loc">${locOpts(t,sel)}</select>`,
+  ${isNew?"":`<label>프로젝트 이동</label><select id="loc">${locOpts(t)}</select>`}`,
   ()=>{
     const title=$("#tt").value.trim();if(!title)return false;
     const k=$("#dt").value,o={title,who:document.querySelector('input[name=who]:checked').value,projectId:t.projectId,
       due:k==="d"?$("#dd").value:"",month:k==="m"?$("#my").value+"-"+pad($("#mo").value):"",memo:$("#memo").value.trim()};
     if(k==="d"&&!o.due)return false;
-    const lv=$("#loc").value.split("|");let np="";
-    if(lv[0]==="P"){o.projectId=lv[1]}else{const x=todos.find(z=>z.id===lv[1]);np=lv[1];if(x)o.projectId=x.projectId}
+    let np=isNew?(parent||""):(t.parent||"");
+    if(!isNew){const sp=$("#loc").value;if(sp!==rootP(t.projectId)){o.projectId=sp;np=""}}
     if(o.who==="각자"){o.dn=t.dn||{};o.done=EACH.every(n=>o.dn[n])}
     if(isNew)save("todos",uid("t"),{done:false,dn:{},created:Date.now(),...o,parent:np});
     else{save("todos",t.id,{...t,...o,parent:np});if(o.projectId!==t.projectId)dT(t.id).slice(1).forEach(i=>db.collection("todos").doc(i).update({projectId:o.projectId}))}
