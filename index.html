@@ -93,6 +93,11 @@ nav{background:rgba(255,255,255,.8);backdrop-filter:blur(8px);-webkit-backdrop-f
 .cb2 input[type=checkbox]{width:20px;height:20px;border-radius:6px}
 .cb2 input[type=checkbox]:checked::after{left:5px;top:1px;width:5px;height:10px}
 .sheet select#loc{font-size:14px}
+.hd{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:24px;color:var(--sub);width:26px;text-align:center;flex:none;line-height:1}
+.ghost{position:fixed;z-index:50;pointer-events:none;background:#fff;color:#3f3a35;box-shadow:0 8px 24px rgba(0,0,0,.2);border-radius:14px;padding:8px 14px;transform:translate(-50%,-130%);max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.todo.ov{background:var(--soft);outline:2px dashed var(--pri);border-radius:12px}
+.dz{border:2px dashed var(--line);border-radius:14px;text-align:center;padding:12px;color:var(--sub);font-size:14px;margin-bottom:10px}
+.dz.ov{border-color:var(--pri);background:var(--soft);color:var(--pri)}
 </style>
 </head>
 <body>
@@ -119,7 +124,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 const pad=n=>String(n).padStart(2,"0");
 const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const TODAY=ymd(new Date());
-let user=null,authReady=false,denied=false,db=null,todos=[],projects=[],tab="list",proj=null,open=new Set(),cal=new Date(2026,10,1),selDay=null,armed=null,ready=false,seeded=false,me=null;
+let drag=null,editMode=false,user=null,authReady=false,denied=false,db=null,todos=[],projects=[],tab="list",proj=null,open=new Set(),cal=new Date(2026,10,1),selDay=null,armed=null,ready=false,seeded=false,me=null;
 try{me=localStorage.getItem("me")}catch(e){}
 const COLORS=["#fffbd9","#ffeedd","#d6f4ee","#eef7ff","#f7f2ff","#f0faf8"];
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
@@ -156,11 +161,11 @@ function flat(t){
 const list=arr=>arr.length?`<div class="card">${arr.map(flat).join("")}</div>`:`<div class="empty">할 일이 없어요</div>`;
 /* tree row (프로젝트 안) */
 function node(t){
-  const kids=todos.filter(x=>x.parent===t.id).sort(byKey),op=open.has(t.id);
+  const kids=todos.filter(x=>x.parent===t.id).sort(byKey),op=open.has(t.id)||editMode;
   const sub=[label(t),kids.length?`하위 ${kids.filter(x=>x.done).length}/${kids.length}`:""].filter(Boolean).join(" · ");
-  return `<div class="item"><div class="todo ${t.done?"done":""}">${cb(t)}
+  return `<div class="item"><div class="todo ${t.done?"done":""}" data-row="${t.id}">${editMode?`<span class="hd" data-drag="${t.id}">⠿</span>`:cb(t)}
   <div class="tt" data-act="exp" data-id="${t.id}">${esc(t.title)}${sub?`<small>${sub}</small>`:""}${t.memo?`<small class="memo">📝 ${esc(t.memo)}</small>`:""}</div><span class="w" style="background:${WC[t.who]||"#eee"}">${esc(t.who||"")}</span><button class="sm" data-act="edit" data-id="${t.id}">⋯</button><span class="chev ${op?"o":""}" data-act="exp" data-id="${t.id}">›</span></div>`+
-  (op?`<div class="kids">${kids.map(node).join("")}<button class="add" data-act="addTodo" data-id="${t.id}">+ 하위 항목</button></div>`:"")+`</div>`;
+  (op?`<div class="kids">${kids.map(node).join("")}${editMode?"":`<button class="add" data-act="addTodo" data-id="${t.id}">+ 하위 항목</button>`}</div>`:"")+`</div>`;
 }
 const delBtn=id=>`<button class="sm ${armed===id?"arm":""}" data-act="delProj" data-id="${id}">${armed===id?"정말 삭제?":"삭제"}</button>`;
 
@@ -176,9 +181,9 @@ function vList(){
   }
   const p=projects.find(x=>x.id===proj);if(!p){proj=null;return vList()}
   const roots=todos.filter(t=>inProj(t,p.id)&&!t.parent).sort(byKey);
-  h+=`<button class="back" data-act="back">← 전체</button><div class="row"><h2 style="margin:4px 0">${esc(p.emoji||"")} ${esc(p.name)}</h2>${delBtn(p.id)}</div>`;
-  h+=`<div class="row" style="margin:14px 0 10px"><small style="color:var(--sub)">눌러서 하위 항목 보기</small><button class="sm" data-act="addTodo" data-id="">+ 할 일</button></div>`;
-  return h+(roots.length?`<div class="card">${roots.map(node).join("")}</div>`:`<div class="empty">할 일을 추가해보세요</div>`);
+  h+=`<button class="back" data-act="back">← 전체</button><div class="row"><h2 style="margin:4px 0">${esc(p.emoji||"")} ${esc(p.name)}</h2><span style="display:flex;gap:6px">${editMode?"":delBtn(p.id)}<button class="sm" data-act="editmode">${editMode?"완료":"편집"}</button></span></div>`;
+  h+=`<div class="row" style="margin:14px 0 10px"><small style="color:var(--sub)">${editMode?"⠿ 를 끌어서 다른 할 일 위에 놓으세요":"눌러서 하위 항목 보기"}</small><button class="sm" data-act="addTodo" data-id="">+ 할 일</button></div>`;
+  return h+(editMode?`<div class="dz" data-row="__top">여기로 끌면 최상위로 나와요</div>`:"")+(roots.length?`<div class="card">${roots.map(node).join("")}</div>`:`<div class="empty">할 일을 추가해보세요</div>`);
 }
 function vMine(){
   const mine=todos.filter(t=>t.who==="각자"?(EACH.includes(me)&&!(t.dn&&t.dn[me])):(!t.done&&(t.who===me||t.who==="함께"))).sort(byKey);
@@ -209,7 +214,7 @@ function vCal(){
   if(selDay){const d=new Date(selDay+"T00:00:00");h+=`<h2>${d.getMonth()+1}월 ${d.getDate()}일</h2>`+list(todos.filter(t=>t.due===selDay));}
   return h;
 }
-function render(){theme();
+function render(){if(drag)return;theme();
   if(!authReady){$("#app").innerHTML=`<div class="msg">불러오는 중…</div>`;$("#nav").innerHTML="";return}
   if(!user){$("#app").innerHTML=`<div class="msg"><h1>🏡 우리 할 일</h1><p>구글 계정으로 로그인해 주세요</p><button class="pri" data-act="login">Google로 로그인</button></div>`;$("#nav").innerHTML="";return}
   if(denied){$("#app").innerHTML=`<div class="msg"><h1>접근할 수 없어요</h1><p>${esc(user.email)} 계정은 허용되지 않았어요.</p><button class="pri" data-act="logout">다른 계정으로 로그인</button></div>`;$("#nav").innerHTML="";return}
@@ -263,15 +268,51 @@ function todoModal(pid,t,parent){
   $("#dt").onchange=sync;sync();
 }
 const save=(c,id,o)=>{const x={...o};delete x.id;return db.collection(c).doc(id).set(x).catch(console.error)};
+/* drag */
+function moveTodo(t,np){
+  if((t.parent||"")===np)return;
+  let pid=t.projectId;if(np){const x=todos.find(z=>z.id===np);if(x)pid=x.projectId}
+  const old=t.projectId;t.parent=np;t.projectId=pid;
+  save("todos",t.id,t);
+  if(pid!==old)dT(t.id).slice(1).forEach(i=>db.collection("todos").doc(i).update({projectId:pid}));
+  if(np)open.add(np);
+}
+document.addEventListener("pointerdown",e=>{
+  const h=e.target.closest("[data-drag]");if(!h||drag)return;
+  const id=h.dataset.drag,t=todos.find(x=>x.id===id);if(!t)return;
+  e.preventDefault();
+  const g=document.createElement("div");g.className="ghost";g.textContent=t.title;
+  g.style.left=e.clientX+"px";g.style.top=e.clientY+"px";document.body.appendChild(g);
+  drag={id,ex:dT(id),g,over:null};
+  try{h.setPointerCapture(e.pointerId)}catch(x){}
+});
+document.addEventListener("pointermove",e=>{
+  if(!drag)return;e.preventDefault();
+  drag.g.style.left=e.clientX+"px";drag.g.style.top=e.clientY+"px";
+  const el=document.elementFromPoint(e.clientX,e.clientY),r=el&&el.closest("[data-row]");
+  const ok=r&&(r.dataset.row==="__top"||!drag.ex.includes(r.dataset.row));
+  if(drag.over&&drag.over!==r)drag.over.classList.remove("ov");
+  drag.over=ok?r:null;if(ok)r.classList.add("ov");
+},{passive:false});
+function endDrag(e,go){
+  if(!drag)return;const d=drag;drag=null;d.g.remove();
+  if(d.over){d.over.classList.remove("ov");
+    if(go){const rid=d.over.dataset.row,t=todos.find(x=>x.id===d.id);if(t)moveTodo(t,rid==="__top"?"":rid)}}
+  render();
+}
+document.addEventListener("pointerup",e=>endDrag(e,true));
+document.addEventListener("pointercancel",e=>endDrag(e,false));
 /* events */
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-act]");if(!el||el.closest("#modal"))return;
   const a=el.dataset.act,id=el.dataset.id;
+  if(a==="back"||a==="tab"||a==="open")editMode=false;
   if(a!=="delProj"&&armed)armed=null;
   if(a==="setme"){me=id;try{localStorage.setItem("me",me)}catch(x){}}
   else if(a==="switch"){me=me==="우정"?"길성":"우정";try{localStorage.setItem("me",me)}catch(x){}}
   else if(a==="login"){const pv=new firebase.auth.GoogleAuthProvider();auth.signInWithPopup(pv).catch(e=>{console.error(e);if(e.code==="auth/popup-blocked")auth.signInWithRedirect(pv)});return}
   else if(a==="logout"){auth.signOut();return}
+  else if(a==="editmode"){editMode=!editMode}
   else if(a==="tab"){tab=id;proj=null}
   else if(a==="open")proj=id;
   else if(a==="back")proj=null;
